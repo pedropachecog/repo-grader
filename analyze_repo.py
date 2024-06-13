@@ -4,10 +4,10 @@ import openai
 import datetime
 
 sentences_file_analyzer = 1
-system_prompt_file_analyzer = f"You are a code grader and analyzer. Evaluate if the code provided complies with the requirements and, based on that, suggest a possible grade out of 100 and give a {sentences_file_analyzer} sentence succint analysis. Format each response this way: start with the suggested grade followed by a period and then an evaluation that is at the very most {sentences_file_analyzer} sentence long. Example output: '100. The code provided meets the requirements by uploading the file to S3 and saving the input in DynamoDB.' Always start your evaluation with a numeric grade and a period. Do not repeat code nor the requirements."
+system_prompt_file_analyzer = f"You are a code grader and analyzer. Evaluate if the code provided complies with the requirements and, based on that, suggest a possible grade out of 100 and give a succint analysis. Format each response in Markdown, in this manner: start with the suggested grade followed by a period and then an evaluation that is at the very most {sentences_file_analyzer} sentence long. Always start your evaluation with a numeric grade and a period. Do not repeat code nor the requirements. Example output: **100/100** The code provided meets the requirements by uploading the file to S3 and saving the input in DynamoDB. "
 
 sentences_whole_evaluation = 4
-system_prompt_for_whole_evaluation = f"You are a grader, expert in grading code. You are tasked with evaluation a repo. You will be provided analysis for each of the files in the repo. Look at the analysis provided to you and generate a grade out of 100 based on the analysis. The analysis should be based on the requirements provided to you. The grade should be a number between 0 and 100. The analysis should be a 1 sentence evaluation of the code. The analysis should be at the very most 4 {sentences_whole_evaluation} long."
+system_prompt_for_whole_evaluation = f"You are a grader, expert in grading code. You are tasked with evaluating a repo. You will be provided individual analysis for each of the files in the repo. Look at the analysis provided to you and generate a grade out of 100 based on the analysis. The analysis should be based on the requirements provided to you. The grade should be a number between 0 and 100. The analysis should be at the very most  {sentences_whole_evaluation} sentences long and formatted using markdown."
 
 def is_binary_file(file_path):
     # Function to check if a file is binary
@@ -133,40 +133,49 @@ def main():
     client = openai.Client(api_key=api_key, base_url=args.endpoint)
 
     requirements = """
-    System Components:
-    - Upload the input file to S3 from the browser directly (do not send the file content directly to Lambda)
-        o S3 path: [BucketName]/[InputFile].txt
-    - Save the inputs and S3 path in DynamoDB FileTable via API gateway and Lambda Function
-        o id : [1] // auto-generated id via nanoid
-        o input_text: [InputText]
-        o input_file_path: [BucketName]/[InputFile].txt
-    - After the file is uploaded in S3 and added to DynamoDB, trigger a script run in a VM instance (EC2) via the DynamoDB Event in order to do:
-    [script starts here]
-    1. Create a new VM automatically
-    2. Download the script from S3 to the VM (Upload the scripts to S3 via CDK or programmatically as the InputFile)
-    3. Run the script in the VM
-        a) Get the inputs from DynamoDB FileTable by id
-        b) Download the input file from S3 [BucketName]/[InputFile].txt to the VM
-        c) Append the retrieved input text to the downloaded input file and save it as [OutputFile].txt
-            i. [OutputFile].txt content: "[File Content] : [InputText]"
-        d) Upload the output file to S3
-            i. S3 path: [BucketName]/[OutputFile].txt
-        e) Save the outputs and S3 path in DynamoDB FileTable
-            i. id : [1]
-            ii. output_file_path: [BucketName]/[OutputFile].txt
-    4. Terminate the VM automatically
-    [script ends here]
 
-    Basic requirements:
-    - Use AWS CDK to manage AWS infrastructure (latest version, TypeScript)
-    - Use AWS SDK JavaScript V3 for Lambda (latest version, not V2)
-    - Do not put any AWS access key / credentials in your code. (not in code, not in env, follow AWS best practices)
-    - No SSH and no hard-coded parameters.
-    - Your parameter/variable names are reader-friendly.
-    - Your txt file in S3 is not public.
-    - Do not use any AWS Amplify backend.
-    - Follow the AWS Best Practices.
-    - After saving the inputs and S3 path in DynamoDB FileTable, your system will create a new VM (not a pre-provisioned VM) and trigger the script to run automatically with error handling.
+    **System Components:**
+
+    1. **File Upload to S3:**
+    - Upload the input file to S3 directly from the browser.
+    - Do not send the file content directly to Lambda.
+    - S3 path format: `[BucketName]/[InputFile].txt`.
+
+    2. **Save Inputs and S3 Path in DynamoDB:**
+    - Use API Gateway and a Lambda function to save the inputs and S3 path.
+    - DynamoDB FileTable structure:
+        - `id`: Auto-generated ID using nanoid.
+        - `input_text`: The input text.
+        - `input_file_path`: S3 path of the input file, `[BucketName]/[InputFile].txt`.
+
+    3. **Trigger Script on VM Instance:**
+    - After the file is uploaded to S3 and the information is added to DynamoDB, trigger a script run in an EC2 VM instance via a DynamoDB Event.
+    - Script Workflow:
+        1. Automatically create a new VM.
+        2. Download the script from S3 to the VM (scripts should be uploaded to S3 using CDK or programmatically as the InputFile).
+        3. Run the script in the VM:
+            a) Retrieve inputs from DynamoDB FileTable using the ID.
+            b) Download the input file from S3 (`[BucketName]/[InputFile].txt`) to the VM.
+            c) Append the retrieved input text to the downloaded input file and save it as `[OutputFile].txt`.
+            - `[OutputFile].txt` content: `"[File Content] : [InputText]"`.
+            d) Upload the output file to S3.
+            - S3 path: `[BucketName]/[OutputFile].txt`.
+            e) Save the outputs and S3 path in DynamoDB FileTable.
+            - `id`: The same ID.
+            - `output_file_path`: S3 path of the output file, `[BucketName]/[OutputFile].txt`.
+        4. Automatically terminate the VM.
+
+    **Other Requirements:**
+
+    - Do not include any AWS access keys or credentials in your code. Follow AWS best practices for security.
+    - Use AWS CDK to manage AWS infrastructure (latest version, TypeScript).
+    - The txt file in S3 should not be publicly accessible.
+    - Do not include any AWS access keys or credentials in your code. Follow AWS best practices for security.
+    - Do not use AWS Amplify backend.
+    - Follow AWS Best Practices.
+    - Use AWS SDK JavaScript V3 for Lambda (latest version, not V2).
+    - Ensure that after saving the inputs and S3 path in DynamoDB FileTable, a new VM is created (not a pre-provisioned one), and the script runs automatically with proper error handling.
+    - Ensure parameter and variable names are reader-friendly.
     """
     
     try:
