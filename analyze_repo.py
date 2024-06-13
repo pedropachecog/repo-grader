@@ -82,30 +82,20 @@ def analyze_results_with_gpt(client, model, requirements, results):
 
     return final_result
 
-def calculate_grade(analysis_results):
-    # Function to calculate the grade based on the analysis results
+def generate_final_evaluation(client, model, requirements, analysis_results):
     try:
-        # total_score = sum([len(result[1]) for result in analysis_results])
-        # max_score = 1000  # Arbitrary max score for normalization
-        # grade = (total_score / max_score) * 100
-        # return min(grade, 100)  # Ensure grade does not exceed 100
-        total_score = sum([float(result[1].split('.')[0]) for result in analysis_results])
-        print("Total Score: ", total_score)
-        max_score = 100*len(analysis_results)  
-        print("Max Score: ", max_score)
-        grade = total_score/max_score
-        print("Grade: ", grade)
-        return grade
+        final_analysis = analyze_results_with_gpt(client, model, requirements, analysis_results)
+        return final_analysis
     except Exception as e:
-        print(f"Error calculating grade: {e}")
+        print(f"Error generating final analysis: {e}")
         return 0
 
-def generate_report(note, grade, analysis_results):
+def generate_report(note, final_evaluation, analysis_results):
     # Function to generate the markdown report
     try:
         report = f"# Analysis Report\n\n**Note:** {note}\n\n"
-        report += f"**Grade:** {grade:.2f}/100\n\n"
-        report += "## Detailed Analysis\n\n"
+        report += f"**Final evaluation:**\n\n {final_evaluation}\n\n"
+        report += "## File by File Analysis\n\n"
         for file_path, analysis in analysis_results:
             report += f"### {file_path}\n{analysis}\n\n"
         return report
@@ -188,8 +178,8 @@ def main():
         if not analysis_results:
             raise ValueError("Analysis results are empty, possibly due to errors during the GPT API calls.")
         
-        grade = calculate_grade(analysis_results)
-        report = generate_report(args.note, grade, analysis_results)
+        final_evaluation = generate_final_evaluation(client, args.model, requirements, analysis_results)
+        report = generate_report(args.note, final_evaluation, analysis_results)
         
         if not report:
             raise ValueError("Generated report is empty, possibly due to errors in the report generation process.")
