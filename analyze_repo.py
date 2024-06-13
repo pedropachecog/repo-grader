@@ -50,7 +50,18 @@ def analyze_with_gpt(client, model, requirements, files_content):
                 ],
                 max_tokens=500
             )
-            analysis_results.append((file_path, response.choices[0].message['content']))
+            # print("----------")
+            # print("Response:")
+            # print(response)
+            # print("----------")
+            # print("Response.choices[0]:")
+            # print(response.choices[0])
+            # print("Response.choices[0].message:")
+            # print(response.choices[0].message)
+            # print("Response.choices[0].message.content:")
+            # print(response.choices[0].message.content)
+            # print("----------")
+            analysis_results.append((file_path, response.choices[0].message.content))
         except Exception as e:
             print(f"Error analyzing file {file_path}: {e}")
     
@@ -162,7 +173,7 @@ def main():
             raise ValueError("Generated report is empty, possibly due to errors in the report generation process.")
         
         print(report)  # Print the report to the screen
-        save_report(report, args.note)
+        save_report(report.encode('utf-8'), args.note)
     except Exception as e:
         print(f"An error occurred: {e}")
 
