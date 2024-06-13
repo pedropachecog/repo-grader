@@ -15,13 +15,12 @@ RepoAnalyzer is a Python script that utilizes the OpenAI GPT API to analyze a lo
 
 ## Requirements
 
-- Python 3.x
-- OpenAI Python Client Library
+- Python
 - A local Git repository for analysis
 
 ## Installation
 
-1. **Clone the repository** (if applicable):
+1. **Clone this repository**:
    ```bash
    git clone https://github.com/pedropachecog/repo-grader
    cd repo-grader
@@ -90,25 +89,11 @@ It uses the http://localhost:1234/v1 endpoint (LMStudio) and `../aws-challenge` 
 The script generates a Markdown report with the following structure:
 
 - **Note:** Custom note provided via the `--note` parameter.
-- **Grade:** Overall grade out of 100 based on the analysis.
+- **Final evaluation:** Overall grade out of 100 and overall analysis.
 - **Detailed Analysis:** Individual evaluations for each file.
 
 The report is saved in the `reports` directory with the filename format `report-[note]-date-time.md`.
 
 ## Example Report
 
-```
-# Analysis Report
-
-**Note:** GPT-4
-
-**Grade:** 85.00/100
-
-## Detailed Analysis
-
-### path/to/file1.py
-[Analysis content]
-
-### path/to/file2.js
-[Analysis content]
-```
+Reports are in `reports\`. V1, V2, V3 indicates the version of the prompt present in the script when the reports were generated.
