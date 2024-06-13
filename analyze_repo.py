@@ -97,7 +97,7 @@ def save_report(report, note):
         now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         report_filename = f"reports/report-{note}-{now}.md"
         os.makedirs(os.path.dirname(report_filename), exist_ok=True)
-        with open(report_filename, 'w') as f:
+        with open(report_filename, 'wb') as f:
             f.write(report)
         print(f"Report saved to {report_filename}")
     except Exception as e:
