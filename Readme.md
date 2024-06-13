@@ -23,13 +23,29 @@ RepoAnalyzer is a Python script that utilizes the OpenAI GPT API to analyze a lo
 
 1. **Clone the repository** (if applicable):
    ```bash
-   git clone <repository-url>
-   cd <repository-directory>
+   git clone https://github.com/pedropachecog/repo-grader
+   cd repo-grader
    ```
+
+2. **Create a Python Virtual Environment and activate it**:
+
+    Windows:
+   ```bash
+   python -m venv venv
+   venv\Scripts\activate
+   ```
+
+   Linux:
+
+   ```bash
+   python -m venv venv
+   source venv/bin/activate
+   ```
+
 
 2. **Install dependencies**:
    ```bash
-   pip install openai
+   pip install -r requirements.txt
    ```
 
 ## Usage
