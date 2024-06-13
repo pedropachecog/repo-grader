@@ -3,11 +3,11 @@ import argparse
 import openai
 import datetime
 
-sentences_file_analyzer = 1
-system_prompt_file_analyzer = f"You are a code grader and analyzer. Evaluate if the code provided complies with the requirements and, based on that, suggest a possible grade out of 100 and give a succint analysis. Format each response in Markdown, in this manner: start with the suggested grade followed by a period and then an evaluation that is at the very most {sentences_file_analyzer} sentence long. Always start your evaluation with a numeric grade and a period. Do not repeat code nor the requirements. Example output: **100/100** The code provided meets the requirements by uploading the file to S3 and saving the input in DynamoDB. "
+sentences_file_analyzer = 4
+system_prompt_file_analyzer = f"You are a code grader and analyzer. You will be given the code of one of the files in a repo. Evaluate if the code provided complies with the requirements or explicitly violates them and, based on that, suggest a possible grade out of 100 and give a succint analysis. Do not mark ommisions as violations; the requirements might be fulfilled by another file in the repo and you can only see one at a time. Only mark as violations instances of code that does the opposite of what the requirement says. If the code does not meet a requirement, that is not a violation and you should assume another file in the repo might do so. Be very spare and frugal with the violation indications because they are very severe. Only do it when you're absolutely sure the code provided is completely opposite to one of the requirements. Format each response in Markdown, in this manner: start with the suggested grade followed by a period, a list of the requirements it implemented and violated, and then a general evaluation at most {sentences_file_analyzer} sentences long. Do not reprint code, because it is always visible. If needed, refer to code by line. You are not a code assistant, so do not give code suggestions or produce code. Simply evaluate and grade. Refer to requirements by number, do not restate them. Example output:**100/100**/n Complies with requirements: 1,2,3 /n Violates requirements: None /n General evaluation: The code is well-structured and follows best practices."
 
 sentences_whole_evaluation = 4
-system_prompt_for_whole_evaluation = f"You are a grader, expert in grading code. You are tasked with evaluating a repo. You will be provided individual analysis for each of the files in the repo. Look at the analysis provided to you and generate a grade out of 100 based on the analysis. The analysis should be based on the requirements provided to you. The grade should be a number between 0 and 100. The analysis should be at the very most  {sentences_whole_evaluation} sentences long and formatted using markdown."
+system_prompt_for_whole_evaluation = f"You are an expert in grading code. You are tasked with evaluating a repo. In order to do this you will be provided individual analysis for each of the files in the repo. Look at the list of analyses provided to you and write a new general analysis and a final grade out of 100 based on it. Your analysis should be based on the requirements provided to you. The grade should be a number between 0 and 100. Your analysis should be at the very most  {sentences_whole_evaluation} sentences long and formatted using markdown. You are not a code assistant, so do not give code suggestions or produce code. Simply evaluate and grade. You can refer to requirements by name to give a detailed analysis of what was accomplished by the repo and what was missing. Do not use a conversational tone, you are writing a document. Do not address anybody. The individual grade for each file is only a suggestion, and you might ignore it because the grader of the files was not able to see more than one file at a time, and had no memory to remember. You are able to have a holistic view, so make sure you analyze the repo in its entirety, not file by file. Do not provide grading per file, only provide a final grade. Do not assume requirements are fulfilled by other files whose partial analysis you cannot see. Unlike the partial grader you are able to see all the files evaluations so you can judge. Only base your analysis on what you can see. Also list what requirements were not met. Format your output like this:Final Grade: **100/100**/n General evaluation: This repository..."
 
 def is_binary_file(file_path):
     # Function to check if a file is binary
@@ -30,6 +30,8 @@ def load_repo_files(repo_path):
                 continue
             for file in files:
                 if file == '.gitignore':
+                    continue
+                if file.upper() == 'README.md'.upper():
                     continue
                 file_path = os.path.join(root, file)
                 if is_binary_file(file_path):
@@ -133,49 +135,35 @@ def main():
     client = openai.Client(api_key=api_key, base_url=args.endpoint)
 
     requirements = """
+    1. Upload the input file to S3 directly from the browser.
+    2. Do not send the file content directly to Lambda.
+    3. S3 path format: `[BucketName]/[InputFile].txt`.
+    4. Use API Gateway and a Lambda function to save the inputs and S3 path.
+    5. DynamoDB FileTable structure: `id`: Auto-generated ID using nanoid.
+    6. DynamoDB FileTable structure: `input_text`: The input text.
+    7. DynamoDB FileTable structure: `input_file_path`: S3 path of the input file, `[BucketName]/[InputFile].txt`.
+    8. After the file is uploaded to S3 and the information is added to DynamoDB, trigger a script run in an EC2 VM instance via a DynamoDB Event.
+    9. Automatically create a new VM.
+    10. Download the script from S3 to the VM (scripts should be uploaded to S3 using CDK or programmatically as the InputFile).
+    11. Run the script in the VM: Retrieve inputs from DynamoDB FileTable using the ID.
+    12. Run the script in the VM: Download the input file from S3 (`[BucketName]/[InputFile].txt`) to the VM.
+    13. Run the script in the VM: Append the retrieved input text to the downloaded input file and save it as `[OutputFile].txt`.
+    14. `[OutputFile].txt` content: `"[File Content] : [InputText]"`.
+    15. Upload the output file to S3.
+    16. S3 path: `[BucketName]/[OutputFile].txt`.
+    17. Save the outputs and S3 path in DynamoDB FileTable: `id`: The same ID.
+    18. Save the outputs and S3 path in DynamoDB FileTable: `output_file_path`: S3 path of the output file, `[BucketName]/[OutputFile].txt`.
+    19. Automatically terminate the VM.
+    20. Do not include any AWS access keys or credentials in your code. Follow AWS best practices for security.
+    21. Use AWS CDK to manage AWS infrastructure (latest version, TypeScript).
+    22. The txt file in S3 should not be publicly accessible.
+    23. Do not include any AWS access keys or credentials in your code. Follow AWS best practices for security.
+    24. Do not use AWS Amplify backend.
+    25. Follow AWS Best Practices.
+    26. Use AWS SDK JavaScript V3 for Lambda (latest version, not V2).
+    27. Ensure that after saving the inputs and S3 path in DynamoDB FileTable, a new VM is created (not a pre-provisioned one), and the script runs automatically with proper error handling.
+    28. Ensure parameter and variable names are reader-friendly.
 
-    **System Components:**
-
-    1. **File Upload to S3:**
-    - Upload the input file to S3 directly from the browser.
-    - Do not send the file content directly to Lambda.
-    - S3 path format: `[BucketName]/[InputFile].txt`.
-
-    2. **Save Inputs and S3 Path in DynamoDB:**
-    - Use API Gateway and a Lambda function to save the inputs and S3 path.
-    - DynamoDB FileTable structure:
-        - `id`: Auto-generated ID using nanoid.
-        - `input_text`: The input text.
-        - `input_file_path`: S3 path of the input file, `[BucketName]/[InputFile].txt`.
-
-    3. **Trigger Script on VM Instance:**
-    - After the file is uploaded to S3 and the information is added to DynamoDB, trigger a script run in an EC2 VM instance via a DynamoDB Event.
-    - Script Workflow:
-        1. Automatically create a new VM.
-        2. Download the script from S3 to the VM (scripts should be uploaded to S3 using CDK or programmatically as the InputFile).
-        3. Run the script in the VM:
-            a) Retrieve inputs from DynamoDB FileTable using the ID.
-            b) Download the input file from S3 (`[BucketName]/[InputFile].txt`) to the VM.
-            c) Append the retrieved input text to the downloaded input file and save it as `[OutputFile].txt`.
-            - `[OutputFile].txt` content: `"[File Content] : [InputText]"`.
-            d) Upload the output file to S3.
-            - S3 path: `[BucketName]/[OutputFile].txt`.
-            e) Save the outputs and S3 path in DynamoDB FileTable.
-            - `id`: The same ID.
-            - `output_file_path`: S3 path of the output file, `[BucketName]/[OutputFile].txt`.
-        4. Automatically terminate the VM.
-
-    **Other Requirements:**
-
-    - Do not include any AWS access keys or credentials in your code. Follow AWS best practices for security.
-    - Use AWS CDK to manage AWS infrastructure (latest version, TypeScript).
-    - The txt file in S3 should not be publicly accessible.
-    - Do not include any AWS access keys or credentials in your code. Follow AWS best practices for security.
-    - Do not use AWS Amplify backend.
-    - Follow AWS Best Practices.
-    - Use AWS SDK JavaScript V3 for Lambda (latest version, not V2).
-    - Ensure that after saving the inputs and S3 path in DynamoDB FileTable, a new VM is created (not a pre-provisioned one), and the script runs automatically with proper error handling.
-    - Ensure parameter and variable names are reader-friendly.
     """
     
     try:
