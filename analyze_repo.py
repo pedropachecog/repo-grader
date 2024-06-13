@@ -3,6 +3,12 @@ import argparse
 import openai
 import datetime
 
+sentences_file_analyzer = 1
+system_prompt_file_analyzer = f"You are a code grader and analyzer. Evaluate if the code provided complies with the requirements and, based on that, suggest a possible grade out of 100 and give a {sentences_file_analyzer} sentence succint analysis. Format each response this way: start with the suggested grade followed by a period and then an evaluation that is at the very most {sentences_file_analyzer} sentence long. Example output: '100. The code provided meets the requirements by uploading the file to S3 and saving the input in DynamoDB.' Always start your evaluation with a numeric grade and a period. Do not repeat code nor the requirements."
+
+sentences_whole_evaluation = 4
+system_prompt_for_whole_evaluation = f"You are a grader, expert in grading code. You are tasked with evaluation a repo. You will be provided analysis for each of the files in the repo. Look at the analysis provided to you and generate a grade out of 100 based on the analysis. The analysis should be based on the requirements provided to you. The grade should be a number between 0 and 100. The analysis should be a 1 sentence evaluation of the code. The analysis should be at the very most 4 {sentences_whole_evaluation} long."
+
 def is_binary_file(file_path):
     # Function to check if a file is binary
     try:
@@ -45,35 +51,51 @@ def analyze_with_gpt(client, model, requirements, files_content):
             response = client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": "You are a code analyzer."},
+                    {"role": "system", "content": system_prompt_file_analyzer},
                     {"role": "user", "content": f"Analyze the following code file based on these requirements: {requirements}\n\n{content}"}
                 ],
                 max_tokens=500
             )
-            # print("----------")
-            # print("Response:")
-            # print(response)
-            # print("----------")
-            # print("Response.choices[0]:")
-            # print(response.choices[0])
-            # print("Response.choices[0].message:")
-            # print(response.choices[0].message)
-            # print("Response.choices[0].message.content:")
-            # print(response.choices[0].message.content)
-            # print("----------")
             analysis_results.append((file_path, response.choices[0].message.content))
         except Exception as e:
             print(f"Error analyzing file {file_path}: {e}")
     
     return analysis_results
 
+def analyze_results_with_gpt(client, model, requirements, results):
+    # Function to analyze the results using GPT API
+
+    results_concatenated = [f"{result[0]}: {result[1]}" for result in results]
+    
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt_file_analyzer},
+                {"role": "user", "content": f"Generate an evaluation based on these requirements: {requirements}.\n\n These are the individual evaluations per file: {results_concatenated}"}
+            ],
+            max_tokens=1000
+        )
+        final_result = response.choices[0].message.content
+    except Exception as e:
+        print(f"Error analyzing result: {e}")
+
+    return final_result
+
 def calculate_grade(analysis_results):
     # Function to calculate the grade based on the analysis results
     try:
-        total_score = sum([len(result[1]) for result in analysis_results])
-        max_score = 1000  # Arbitrary max score for normalization
-        grade = (total_score / max_score) * 100
-        return min(grade, 100)  # Ensure grade does not exceed 100
+        # total_score = sum([len(result[1]) for result in analysis_results])
+        # max_score = 1000  # Arbitrary max score for normalization
+        # grade = (total_score / max_score) * 100
+        # return min(grade, 100)  # Ensure grade does not exceed 100
+        total_score = sum([float(result[1].split('.')[0]) for result in analysis_results])
+        print("Total Score: ", total_score)
+        max_score = 100*len(analysis_results)  
+        print("Max Score: ", max_score)
+        grade = total_score/max_score
+        print("Grade: ", grade)
+        return grade
     except Exception as e:
         print(f"Error calculating grade: {e}")
         return 0
