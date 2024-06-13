@@ -42,7 +42,7 @@ def analyze_with_gpt(client, model, requirements, files_content):
     analysis_results = []
     for file_path, content in files_content.items():
         try:
-            response = client.chat_completions.create(
+            response = client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": "You are a code analyzer."},
@@ -107,7 +107,7 @@ def main():
     if not api_key:
         raise ValueError("API key must be provided either as an argument or in the OPENAI_API_KEY environment variable.")
 
-    openai.api_key = api_key
+    client = openai.Client(api_key=api_key, base_url=args.endpoint)
 
     requirements = """
     System Components:
@@ -151,7 +151,7 @@ def main():
         if not repo_files:
             raise ValueError(f"No files found in the repository path: {args.repo_path}")
 
-        analysis_results = analyze_with_gpt(openai, args.model, requirements, repo_files)
+        analysis_results = analyze_with_gpt(client, args.model, requirements, repo_files)
         if not analysis_results:
             raise ValueError("Analysis results are empty, possibly due to errors during the GPT API calls.")
         
