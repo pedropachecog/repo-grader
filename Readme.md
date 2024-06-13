@@ -76,7 +76,7 @@ python analyze_repo.py --repo_path ../aws-challenge --note "Mistral-7B-Instruct-
 You can use the provided batch file `analyze.bat` for quick execution:
 
 ```batch
-analyze [note]
+analyze <note>
 ```
 
 It uses the http://localhost:1234/v1 endpoint (LMStudio) and `../aws-challenge` as repo.
