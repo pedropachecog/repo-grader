@@ -4,10 +4,10 @@ import openai
 import datetime
 
 sentences_file_analyzer = 4
-system_prompt_file_analyzer = f"You are a code grader and analyzer. You will be given the code of one of the files in a repo. Evaluate if the code provided complies with the requirements or explicitly violates them and, based on that, suggest a possible grade out of 100 and give a succint analysis. Do not mark ommisions as violations; the requirements might be fulfilled by another file in the repo and you can only see one at a time. Only mark as violations instances of code that does the opposite of what the requirement says. If the code does not meet a requirement, that is not a violation and you should assume another file in the repo might do so. Be very spare and frugal with the violation indications because they are very severe. Only do it when you're absolutely sure the code provided is completely opposite to one of the requirements. Format each response in Markdown, in this manner: start with the suggested grade followed by a period, a list of the requirements it implemented and violated, and then a general evaluation at most {sentences_file_analyzer} sentences long. Do not reprint code, because it is always visible. If needed, refer to code by line. You are not a code assistant, so do not give code suggestions or produce code. Simply evaluate and grade. Refer to requirements by number, do not restate them. Example output:**100/100**/n Complies with requirements: 1,2,3 /n Violates requirements: None /n General evaluation: The code is well-structured and follows best practices."
+system_prompt_file_analyzer = f"You are a code grader and analyzer. You will be given the code of one of the files in a repo. Evaluate if the code provided complies with the requirements or explicitly violates them and, based on that, suggest a possible grade out of 100 and give a succint analysis. You should provide a grade, the requirements fulfilled by the file, and the requirements glaringly violated by the file. THIS IS VERY IMPORTANT: NEVER MARK LACK OF IMPLEMENTATION AS A VIOLATION. Only mark as violations instances of code that actively perform something that one of the requirements forbids. Example: If Requirement 55 is 'never use Chinese character in variables'. If the code you see uses English characters, that is not a violation of Requirement 55. If the code has cyrilic characters in the variables, that is not a violation of Requirement 55. If the code has 1 chinese character then only that counts as a violation of the Requirement 55. Another example: Requirement 67 is 'zip the uploaded file'. If the file you are analyzing does not zip the uploaded file, that does not count as a violation of Requirement 67. That is an omission and it is fine and should be ignored. Only evaluate the code against the requirements that can be identified on it. This is an example of an absolutely wrong evaulation you should avoid: 'The code did not implement requirements 1 to 20, so it violated requirements 1 to 20'. Never equate 'do not implement' with 'violation'. VERY IMPORTANT: LACK OF IMPLEMENTATION IS NEVER A VIOLATION. AVOID MARKING VIOLATIONS unless you're completely sure the code actively went against a requirement. LACK OF IMPLEMENTATION DOES NOT MEAN VIOLATION. And avoid grading the code for things it didn't do. If it does nothing, then it gets a 100/100 and zero violations. Format: each response should be in markdown, in this manner: start with the suggested grade followed by a period, a list of the requirements it implemented and violated, and then a general evaluation at most {sentences_file_analyzer} sentences long. Assume code is always visible so avoid rewriting or reprinting it. You are not a code assistant, so do not give code suggestions or produce code. Simply evaluate and grade. Refer to requirements by number, do not restate them. Example output:**100/100**/n Complies with requirements: 1,4,13 /n Violates requirements: None /n General evaluation: The code is well-structured and follows best practices."
 
 sentences_whole_evaluation = 4
-system_prompt_for_whole_evaluation = f"You are an expert in grading code. You are tasked with evaluating a repo. In order to do this you will be provided individual analysis for each of the files in the repo. Look at the list of analyses provided to you and write a new general analysis and a final grade out of 100 based on it. Your analysis should be based on the requirements provided to you. The grade should be a number between 0 and 100. Your analysis should be at the very most  {sentences_whole_evaluation} sentences long and formatted using markdown. You are not a code assistant, so do not give code suggestions or produce code. Simply evaluate and grade. You can refer to requirements by name to give a detailed analysis of what was accomplished by the repo and what was missing. Do not use a conversational tone, you are writing a document. Do not address anybody. The individual grade for each file is only a suggestion, and you might ignore it because the grader of the files was not able to see more than one file at a time, and had no memory to remember. You are able to have a holistic view, so make sure you analyze the repo in its entirety, not file by file. Do not provide grading per file, only provide a final grade. Do not assume requirements are fulfilled by other files whose partial analysis you cannot see. Unlike the partial grader you are able to see all the files evaluations so you can judge. Only base your analysis on what you can see. Also list what requirements were not met. Format your output like this:Final Grade: **100/100**/n General evaluation: This repository..."
+system_prompt_for_whole_evaluation = f"You are an expert in writing code grading reports. You are tasked with evaluating a repo. In order to do this you will be provided individual analysis for each of the files in the repo. Look at the list of analyses provided to you and write a new general analysis and a final grade out of 100 based on it. Your analysis should be based on the requirements provided to you. The grade should be a number between 0 and 100. Your analysis should be at the very most  {sentences_whole_evaluation} sentences long and formatted using markdown. You are not a code assistant, so do not give code suggestions or produce code. Simply evaluate and grade. You can refer to requirements by name to give a detailed analysis of what was accomplished by the repo and what was missing. Do not use a conversational tone, you are writing a document. Do not address anybody. The individual grade for each file is only a suggestion, and you might ignore it because the grader of the files was not able to see more than one file at a time, and had no memory to remember other files. You are different because you are able to have a holistic view, so make sure you analyze the repo in its entirety, not file by file. Do not provide grading per file, only provide a final grade. Do not assume requirements are fulfilled by other files whose partial analysis you cannot see. Unlike the partial grader you are able to see all the files evaluations so you can judge. Only base your analysis on what you can see. Also list what requirements were not met. Format your output like this:Final Grade: **100/100**/n General evaluation: This repository..."
 
 def is_binary_file(file_path):
     # Function to check if a file is binary
@@ -44,6 +44,15 @@ def load_repo_files(repo_path):
     except Exception as e:
         print(f"Error walking through the repo path {repo_path}: {e}")
     return files_content
+
+def load_requirements(file_path='specifications.txt'):
+    try:
+        with open(file_path, 'r') as file:
+            requirements = [line.strip() for line in file.readlines()]
+        return requirements
+    except FileNotFoundError:
+        print("Error: 'specifications.txt' file not found. Aborting.")
+        exit(1)
 
 def analyze_with_gpt(client, model, requirements, files_content):
     # Function to analyze the files using GPT API
@@ -134,37 +143,7 @@ def main():
 
     client = openai.Client(api_key=api_key, base_url=args.endpoint)
 
-    requirements = """
-    1. Upload the input file to S3 directly from the browser.
-    2. Do not send the file content directly to Lambda.
-    3. S3 path format: `[BucketName]/[InputFile].txt`.
-    4. Use API Gateway and a Lambda function to save the inputs and S3 path.
-    5. DynamoDB FileTable structure: `id`: Auto-generated ID using nanoid.
-    6. DynamoDB FileTable structure: `input_text`: The input text.
-    7. DynamoDB FileTable structure: `input_file_path`: S3 path of the input file, `[BucketName]/[InputFile].txt`.
-    8. After the file is uploaded to S3 and the information is added to DynamoDB, trigger a script run in an EC2 VM instance via a DynamoDB Event.
-    9. Automatically create a new VM.
-    10. Download the script from S3 to the VM (scripts should be uploaded to S3 using CDK or programmatically as the InputFile).
-    11. Run the script in the VM: Retrieve inputs from DynamoDB FileTable using the ID.
-    12. Run the script in the VM: Download the input file from S3 (`[BucketName]/[InputFile].txt`) to the VM.
-    13. Run the script in the VM: Append the retrieved input text to the downloaded input file and save it as `[OutputFile].txt`.
-    14. `[OutputFile].txt` content: `"[File Content] : [InputText]"`.
-    15. Upload the output file to S3.
-    16. S3 path: `[BucketName]/[OutputFile].txt`.
-    17. Save the outputs and S3 path in DynamoDB FileTable: `id`: The same ID.
-    18. Save the outputs and S3 path in DynamoDB FileTable: `output_file_path`: S3 path of the output file, `[BucketName]/[OutputFile].txt`.
-    19. Automatically terminate the VM.
-    20. Do not include any AWS access keys or credentials in your code. Follow AWS best practices for security.
-    21. Use AWS CDK to manage AWS infrastructure (latest version, TypeScript).
-    22. The txt file in S3 should not be publicly accessible.
-    23. Do not include any AWS access keys or credentials in your code. Follow AWS best practices for security.
-    24. Do not use AWS Amplify backend.
-    25. Follow AWS Best Practices.
-    26. Use AWS SDK JavaScript V3 for Lambda (latest version, not V2).
-    27. Ensure that after saving the inputs and S3 path in DynamoDB FileTable, a new VM is created (not a pre-provisioned one), and the script runs automatically with proper error handling.
-    28. Ensure parameter and variable names are reader-friendly.
-
-    """
+    requirements = load_requirements()
     
     try:
         repo_files = load_repo_files(args.repo_path)
