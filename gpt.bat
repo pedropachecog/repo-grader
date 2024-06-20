@@ -6,3 +6,4 @@ goto end
 :nomodel
 echo You need to specify a model as the first parameter, such as gpt-4
 echo.
+:end
