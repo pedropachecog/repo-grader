@@ -29,7 +29,7 @@ def load_repo_files(repo_path):
             if '.git' in root:
                 continue
             for file in files:
-                if file == '.gitignore':
+                if file == '.gitignore' or file.upper() == '.env'.upper():
                     continue
                 if file.upper() == 'README.md'.upper():
                     continue
@@ -63,7 +63,7 @@ def analyze_with_gpt(client, model, requirements, files_content):
                 model=model,
                 messages=[
                     {"role": "system", "content": system_prompt_file_analyzer},
-                    {"role": "user", "content": f"Analyze the following code file based on these requirements: {requirements}\n\n{content}"}
+                    {"role": "user", "content": f"Analyze the following code file whose name is {file_path} based on these requirements: {requirements}\n\n{content}"}
                 ],
                 max_tokens=500
             )
@@ -83,7 +83,7 @@ def analyze_results_with_gpt(client, model, requirements, results):
             model=model,
             messages=[
                 {"role": "system", "content": system_prompt_file_analyzer},
-                {"role": "user", "content": f"Generate an evaluation based on these requirements: {requirements}.\n\n These are the individual evaluations per file: {results_concatenated}"}
+                {"role": "user", "content": f"Generate a holistic evaluation of the whole project based on these requirements: {requirements}.\n\n These are the individual evaluations per file: {results_concatenated}"}
             ],
             max_tokens=1000
         )
@@ -101,14 +101,20 @@ def generate_final_evaluation(client, model, requirements, analysis_results):
         print(f"Error generating final analysis: {e}")
         return 0
 
-def generate_report(note, final_evaluation, analysis_results):
+def generate_report(note, final_evaluation, requirements, analysis_results):
     # Function to generate the markdown report
     try:
         report = f"# Analysis Report\n\n**Note:** {note}\n\n"
         report += f"**Final evaluation:**\n\n {final_evaluation}\n\n"
+        report += "## Requirements\n\n"
+        for i, requirement in enumerate(requirements, 1):
+            report += f"{requirement}\n"
         report += "## File by File Analysis\n\n"
         for file_path, analysis in analysis_results:
             report += f"### {file_path}\n{analysis}\n\n"
+        report += "# Prompts used:\n\n"
+        report += f"## File by File Analysis:\n\n{system_prompt_file_analyzer}\n\n"
+        report += f"## Whole Evaluation:\n\n{system_prompt_for_whole_evaluation}\n\n"
         return report
     except Exception as e:
         print(f"Error generating report: {e}")
@@ -155,7 +161,7 @@ def main():
             raise ValueError("Analysis results are empty, possibly due to errors during the GPT API calls.")
         
         final_evaluation = generate_final_evaluation(client, args.model, requirements, analysis_results)
-        report = generate_report(args.note, final_evaluation, analysis_results)
+        report = generate_report(args.note, final_evaluation, requirements, analysis_results)
         
         if not report:
             raise ValueError("Generated report is empty, possibly due to errors in the report generation process.")
